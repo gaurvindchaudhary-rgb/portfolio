@@ -1,0 +1,40 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // 1. Global Safety Net (Default Deny)
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // 2. Global Helper Functions
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    // 3. Validation Blueprint for Enquiries (The "Anti-Update-Gap")
+    function isValidEnquiry(data) {
+      return data.keys().hasAll(['name', 'email', 'subject', 'message', 'createdAt'])
+        && data.keys().size() == 5
+        && data.name is string && data.name.size() >= 1 && data.name.size() <= 100
+        && data.email is string && data.email.size() >= 3 && data.email.size() <= 150
+        && data.subject is string && data.subject.size() <= 200
+        && data.message is string && data.message.size() >= 1 && data.message.size() <= 2000
+        && data.createdAt == request.time;
+    }
+
+    // 4. Match Rules for Enquiries
+    match /enquiries/{enquiryId} {
+      // Allow any visitor to submit an inquiry (no auth required for contact form)
+      // but enforce strict validation schema & ID poisoning protection
+      allow create: if isValidId(enquiryId) && isValidEnquiry(incoming());
+      
+      // Enquiries are private; do not allow anyone to read, list, update, or delete via client SDK
+      allow get, list, update, delete: if false;
+    }
+  }
+}

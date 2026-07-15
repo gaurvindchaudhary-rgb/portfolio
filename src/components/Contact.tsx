@@ -1,7 +1,9 @@
 import React, { useState } from "react";
-import { Send, MessageSquare, Check, Mail, Phone, MapPin } from "lucide-react";
+import { Send, MessageSquare, Check, Mail, MapPin } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { ContactFormData } from "../types";
+import { db, handleFirestoreError, OperationType } from "../firebase";
+import { collection, addDoc, serverTimestamp } from "firebase/firestore";
 
 export default function Contact() {
   const [form, setForm] = useState<ContactFormData>({
@@ -23,24 +25,37 @@ export default function Contact() {
     });
   };
 
-  const handleFormSubmit = (e: React.FormEvent) => {
+  const handleFormSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.name || !form.email || !form.message) return;
 
     setIsSubmitting(true);
-    // Simulate API delivery
-    setTimeout(() => {
+    const collectionPath = "enquiries";
+
+    try {
+      // Save contact inquiry to Firestore
+      await addDoc(collection(db, collectionPath), {
+        name: form.name,
+        email: form.email,
+        subject: form.subject || "",
+        message: form.message,
+        createdAt: serverTimestamp()
+      });
+
       setIsSubmitting(false);
       setSubmitSuccess(true);
       // Reset form
       setForm({ name: "", email: "", subject: "", message: "" });
       // Reset success banner after some time
       setTimeout(() => setSubmitSuccess(false), 5000);
-    }, 1500);
+    } catch (error) {
+      setIsSubmitting(false);
+      handleFirestoreError(error, OperationType.WRITE, collectionPath);
+    }
   };
 
   // Generate a dynamic, helpful WhatsApp link based on the user's name and message inputs
-  const whatsappNumber = "91XXXXXXXXXX"; // Placeholder for real number, keeping it secure
+  const whatsappNumber = "917302668043"; // Your updated WhatsApp number
   const textMessage = encodeURIComponent(
     `Hello Gopal! My name is ${form.name || "[Your Name]"}. I am reaching out about "${
       form.subject || "a new project"
